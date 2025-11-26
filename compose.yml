@@ -1,0 +1,17 @@
+services:
+  # Nome do serviço no Docker Compose
+  mqtt:
+    image: mqtt-jwt:local
+    build:
+      context: . 
+      dockerfile: Dockerfile 
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./keys/HS256.secret.key:/mosquitto/config/jwt_secret.key:ro
+
+volumes:
+  mosquitto_data:

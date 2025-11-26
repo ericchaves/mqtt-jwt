@@ -1,0 +1,91 @@
+name: Publicar Imagem Docker no GHCR
+
+# Define os eventos que disparam este fluxo de trabalho
+on:
+  # Disparo em push para as branches principais
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      # Disparo em tags (ex: v1.0.0) na branch main
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  
+  # Disparo manual (para reconstruir tags existentes)
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag para a imagem (ex: latest, v1.2.3)'
+        required: true
+        default: 'latest'
+
+# ----------------------------------------------------------------------
+# Permissões: Necessário para o GITHUB_TOKEN poder interagir com GHCR
+# ----------------------------------------------------------------------
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🚚 Checkout do Código
+        uses: actions/checkout@v4
+        
+      # Define a URL base do registry e o nome do repositório
+      - name: 🏗️ Configurar Variáveis
+        id: vars
+        run: |
+          # Padrão: ghcr.io/OWNER/REPOSITORY_NAME
+          echo "REGISTRY=ghcr.io" >> $GITHUB_OUTPUT
+          echo "IMAGE_NAME=${{ github.repository }}" >> $GITHUB_OUTPUT
+
+      # --------------------------------------------------------------
+      # 1. Login no GitHub Container Registry (GHCR)
+      # --------------------------------------------------------------
+      - name: 🔑 Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.vars.outputs.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      # --------------------------------------------------------------
+      # 2. Determinar as Tags da Imagem
+      # --------------------------------------------------------------
+      - name: 🏷️ Determinar Tags e Labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.vars.outputs.REGISTRY }}/${{ steps.vars.outputs.IMAGE_NAME }}
+          tags: |
+            # ----------------------------------------------------------
+            # Regras de Tagging
+            # ----------------------------------------------------------
+            
+            # A. Disparo na branch develop
+            type=raw,value=develop,enable={{isSourceBranch 'develop'}}
+            
+            # B. Disparo na branch main
+            type=raw,value=latest,enable={{isSourceBranch 'main'}}
+            
+            # C. Disparo com Tag (ex: v1.2.3)
+            type=ref,event=tag
+            
+            # D. Disparo Manual (workflow_dispatch)
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      # --------------------------------------------------------------
+      # 3. Buildar e Publicar a Imagem
+      # --------------------------------------------------------------
+      - name: 📦 Build e Push para GHCR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Usar o seu Dockerfile com a variável JWT_SECRET
+          file: Dockerfile
