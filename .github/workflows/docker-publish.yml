@@ -66,10 +66,10 @@ jobs:
             # ----------------------------------------------------------
             
             # A. Disparo na branch develop
-            type=raw,value=develop,enable={{isSourceBranch 'develop'}}
+            type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
             
             # B. Disparo na branch main
-            type=raw,value=latest,enable={{isSourceBranch 'main'}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             
             # C. Disparo com Tag (ex: v1.2.3)
             type=ref,event=tag
